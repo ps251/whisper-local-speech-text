@@ -6,8 +6,9 @@ import argparse
 
 
 def send_command(command, server_address):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client_socket.connect(server_address)
+
     try:
         client_socket.sendall(struct.pack(">I", command))
         response_length = struct.unpack(">I", client_socket.recv(4))[0]
@@ -30,7 +31,7 @@ def main():
     )
     args = parser.parse_args()
 
-    server_address = ("localhost", 65432)
+    server_address = "/tmp/whisper_server_socket"
 
     if args.command == "start":
         send_command(1, server_address)

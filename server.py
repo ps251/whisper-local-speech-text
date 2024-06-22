@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import socket
+import os
 import threading
 import struct
 import warnings
@@ -169,15 +170,26 @@ def handle_client_connection(client_socket, recorder):
 def main():
     recorder = Recorder()
 
-    server_address = ("localhost", 65432)
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Change the server_address to a file path for Unix socket
+    server_address = "/tmp/whisper_server_socket"
+
+    # Create a Unix socket
+    server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+    # Ensure the socket file does not already exist
+    try:
+        os.unlink(server_address)
+    except OSError:
+        if os.path.exists(server_address):
+            raise
+
     server_socket.bind(server_address)
     server_socket.listen(5)
     print(f"Server listening on {server_address}")
 
     try:
         while True:
-            client_socket, client_address = server_socket.accept()
+            client_socket, _ = server_socket.accept()
             client_handler = threading.Thread(
                 target=handle_client_connection,
                 args=(client_socket, recorder),
