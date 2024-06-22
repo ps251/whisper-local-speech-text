@@ -4,7 +4,6 @@ import socket
 import threading
 import struct
 import warnings
-from json import dumps, loads
 from time import monotonic as time
 
 warnings.filterwarnings("ignore")
@@ -30,8 +29,6 @@ except ImportError:
         "whisper package not found. Please reinstall whisper to use this script."
     )
 
-import numpy as np
-
 
 class Recorder:
     """Recorder class for audio recording."""
@@ -55,7 +52,6 @@ class Recorder:
 
         self.fs = fs
         self.duration = duration
-        self.is_recording = False
         self.recording = None
         self.start_time = None
 
@@ -80,14 +76,12 @@ class Recorder:
             error_message = (
                 f"Failed to load whisper model '{model_name}'. Make sure the model is available and correctly configured. "
                 f"Available models are 'tiny', 'base', 'small', 'medium' and 'large'. "
-                f"When using whisper-clipboard for the first time, you need to download the models first. "
             )
             print(error_message)
             raise type(e)(error_message).with_traceback(e.__traceback__)
 
     def start_recording(self):
         print("Recording ", end="")
-        self.is_recording = True
         self.start_time = time()
         self.recording = sd.rec(
             int(self.fs * self.duration), samplerate=self.fs, channels=1
@@ -95,7 +89,6 @@ class Recorder:
 
     def stop_recording(self):
         print("stopped. ", end="")
-        self.is_recording = False
         sd.stop()
         elapsed_time = time() - self.start_time
         self.recording = self.recording[: int(elapsed_time * self.fs)]
