@@ -58,6 +58,7 @@ class Recorder:
         self.duration = duration
         self.recording = None
         self.start_time = None
+        self.copy_to_clipboard = True
 
         self.ewma_wpm: float = None
         self.ewm_alpha: float = ewm_alpha
@@ -142,8 +143,8 @@ class Recorder:
             print(80 * "=")
             print(transcribed_text)
             print(80 * "=", end="\n")
-
-            pyperclip.copy(transcribed_text)
+            if self.copy_to_clipboard:
+                pyperclip.copy(transcribed_text)
             return transcribed_text
         except Exception as e:
             print(f"Error during transcription:\n{str(e)}")
@@ -167,6 +168,12 @@ def handle_client_connection(client_socket, recorder):
                 recorder.start_recording()
                 client_socket.sendall(struct.pack(">I", 0))
             elif command == 2:  # Stop recording and transcribe
+                ready_to_read, _, _ = select.select([client_socket], [], [], 0)
+                if ready_to_read:
+                    struct.unpack(">I", client_socket.recv(4))
+                    recorder.copy_to_clipboard = False
+                else:
+                    recorder.copy_to_clipboard = True
                 transcription = recorder.stop_recording()
                 response = transcription.encode("utf-8")
                 client_socket.sendall(struct.pack(">I", len(response)) + response)
