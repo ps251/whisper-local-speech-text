@@ -7,6 +7,7 @@ import threading
 import struct
 import warnings
 from time import monotonic as time
+from my_logger import my_log
 
 warnings.filterwarnings("ignore")
 
@@ -162,25 +163,29 @@ class TranscriptionServer:
     def start_recording(self, duration=None):
         with self.recording_lock:
             if self.is_recording:
-                return "Error: Already recording"
+                return False, "Error: Already recording"
             self.is_recording = True
             if duration:
                 self.recorder.duration = duration
             else:
                 self.recorder.duration = DEFAULT_DURATION
             self.recorder.start_recording()
-            return "Recording started"
+            return True, "Recording started"
 
     def stop_recording_and_transcribe(self, copy_to_clipboard=True):
         with self.recording_lock:
             if not self.is_recording:
-                return "Error: Not currently recording"
+                return False, "Error: Not currently recording"
             self.is_recording = False
 
         with self.transcribing_lock:
             self.recorder.copy_to_clipboard = copy_to_clipboard
-            transcription = self.recorder.stop_recording()
-        return transcription
+            try:
+                transcription = self.recorder.stop_recording()
+                return True, transcription
+            except Exception as e:
+                return False, f"Error during transcription: {str(e)}"
+
 
 def handle_client_connection(client_socket, server):
     try:
@@ -190,19 +195,30 @@ def handle_client_connection(client_socket, server):
             duration = None
             if ready_to_read:
                 duration = struct.unpack(">I", client_socket.recv(4))[0]
-            response = server.start_recording(duration)
-            client_socket.sendall(struct.pack(">I", len(response)) + response.encode("utf-8"))
+            success, response = server.start_recording(duration)
+            client_socket.sendall(
+                struct.pack(">I", int(not success))
+                + struct.pack(">I", len(response))
+                + response.encode("utf-8")
+            )
         elif command == 2:  # Stop recording and transcribe
             ready_to_read, _, _ = select.select([client_socket], [], [], 0)
             copy_to_clipboard = True
             if ready_to_read:
                 struct.unpack(">I", client_socket.recv(4))
                 copy_to_clipboard = False
-            transcription = server.stop_recording_and_transcribe(copy_to_clipboard)
+            success, transcription = server.stop_recording_and_transcribe(
+                copy_to_clipboard
+            )
             response = transcription.encode("utf-8")
-            client_socket.sendall(struct.pack(">I", len(response)) + response)
+            client_socket.sendall(
+                struct.pack(">I", int(not success))
+                + struct.pack(">I", len(response))
+                + response
+            )
     finally:
         client_socket.close()
+
 
 def main():
     server = TranscriptionServer()
@@ -232,6 +248,7 @@ def main():
     except KeyboardInterrupt:
         server_socket.close()
         print("\nServer shut down.")
+
 
 if __name__ == "__main__":
     main()

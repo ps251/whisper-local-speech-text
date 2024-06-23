@@ -3,6 +3,7 @@
 import socket
 import struct
 import argparse
+import sys
 
 
 def send_command(command, server_address, duration=None, copy_to_clipboard=True):
@@ -15,6 +16,7 @@ def send_command(command, server_address, duration=None, copy_to_clipboard=True)
         if command == 2 and not copy_to_clipboard:
             message += struct.pack(">I", 1)
         client_socket.sendall(message)
+        is_error = struct.unpack(">I", client_socket.recv(4))[0]
         response_length = struct.unpack(">I", client_socket.recv(4))[0]
         if response_length > 0:
             response = b""
@@ -23,7 +25,7 @@ def send_command(command, server_address, duration=None, copy_to_clipboard=True)
                 if not packet:
                     break
                 response += packet
-            return response.decode("utf-8")
+            return is_error, response.decode("utf-8")
     finally:
         client_socket.close()
 
@@ -46,12 +48,21 @@ def main():
     server_address = "/tmp/1099430_whisper_server_socket"
 
     if args.command == "start":
-        send_command(1, server_address, args.duration)
+        is_error, response = send_command(1, server_address, args.duration)
+        if is_error:
+            print(response, file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(response)
     elif args.command == "stop":
-        transcription = send_command(
+        is_error, transcription = send_command(
             2, server_address, copy_to_clipboard=args.no_clipboard
         )
-        print(transcription)
+        if is_error:
+            print(transcription, file=sys.stderr)
+            sys.exit(1)
+        else:
+            print(transcription)
 
 
 if __name__ == "__main__":
