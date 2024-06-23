@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import socket
+import select
 import os
 import threading
 import struct
@@ -8,6 +9,8 @@ import warnings
 from time import monotonic as time
 
 warnings.filterwarnings("ignore")
+
+DEFAULT_DURATION = 120
 
 try:
     import pyperclip
@@ -37,7 +40,7 @@ class Recorder:
     def __init__(
         self,
         fs: int = 16_000,
-        duration: int = 120,
+        duration: int = DEFAULT_DURATION,
         model_name: str = "base",
         ewm_alpha: float = 1 / 20,
     ):
@@ -155,7 +158,12 @@ def handle_client_connection(client_socket, recorder):
                 break
 
             command = struct.unpack(">I", command)[0]
-            if command == 1:  # Start recording
+            if command == 1:
+                ready_to_read, _, _ = select.select([client_socket], [], [], 0)
+                if ready_to_read:
+                    recorder.duration = struct.unpack(">I", client_socket.recv(4))[0]
+                else:
+                    recorder.duration = DEFAULT_DURATION
                 recorder.start_recording()
                 client_socket.sendall(struct.pack(">I", 0))
             elif command == 2:  # Stop recording and transcribe
@@ -171,7 +179,7 @@ def main():
     recorder = Recorder()
 
     # Change the server_address to a file path for Unix socket
-    server_address = "/tmp/whisper_server_socket"
+    server_address = "/tmp/1099430_whisper_server_socket"
 
     # Create a Unix socket
     server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
