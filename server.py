@@ -7,7 +7,6 @@ import threading
 import struct
 import warnings
 from time import monotonic as time
-from my_logger import my_log
 
 warnings.filterwarnings("ignore")
 

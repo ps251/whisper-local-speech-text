@@ -4,6 +4,7 @@ import socket
 import struct
 import argparse
 import sys
+import subprocess
 
 
 def send_command(command, server_address, duration=None, copy_to_clipboard=True):
@@ -30,6 +31,17 @@ def send_command(command, server_address, duration=None, copy_to_clipboard=True)
         client_socket.close()
 
 
+
+def send_notification(message, is_error=False):
+    try:
+        if is_error:
+            subprocess.run(["notify-send", "-u", "critical", "Whisper Transcription Error", message])
+        else:
+            subprocess.run(["notify-send", "Whisper Transcription", message])
+    except FileNotFoundError:
+        print("notify-send command not found. Notification not sent.", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Client for transcription server")
     parser.add_argument(
@@ -43,6 +55,11 @@ def main():
         action="store_false",
         help="Don't copy transcription to clipboard",
     )
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="Send desktop notifications",
+    )
     args = parser.parse_args()
 
     server_address = "/tmp/1099430_whisper_server_socket"
@@ -51,19 +68,26 @@ def main():
         is_error, response = send_command(1, server_address, args.duration)
         if is_error:
             print(response, file=sys.stderr)
+            if args.notify:
+                send_notification(response, is_error=True)
             sys.exit(1)
         else:
             print(response)
+            if args.notify:
+                send_notification("Recording started")
     elif args.command == "stop":
         is_error, transcription = send_command(
             2, server_address, copy_to_clipboard=args.no_clipboard
         )
         if is_error:
             print(transcription, file=sys.stderr)
+            if args.notify:
+                send_notification(transcription, is_error=True)
             sys.exit(1)
         else:
             print(transcription)
-
+            if args.notify:
+                send_notification("Transcription completed")
 
 if __name__ == "__main__":
     main()
