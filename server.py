@@ -151,47 +151,66 @@ class Recorder:
             return f"Error during transcription:\n{str(e)}"
 
 
-def handle_client_connection(client_socket, recorder):
-    try:
-        while True:
-            command = client_socket.recv(4)
-            if not command:
-                break
+class TranscriptionServer:
+    def __init__(self):
+        self.recorder = Recorder()
+        self.recording_lock = threading.Lock()
+        self.transcribing_lock = threading.Lock()
+        self.is_recording = False
+        self.transcription_queue = []
 
-            command = struct.unpack(">I", command)[0]
-            if command == 1:
-                ready_to_read, _, _ = select.select([client_socket], [], [], 0)
-                if ready_to_read:
-                    recorder.duration = struct.unpack(">I", client_socket.recv(4))[0]
-                else:
-                    recorder.duration = DEFAULT_DURATION
-                recorder.start_recording()
-                client_socket.sendall(struct.pack(">I", 0))
-            elif command == 2:  # Stop recording and transcribe
-                ready_to_read, _, _ = select.select([client_socket], [], [], 0)
-                if ready_to_read:
-                    struct.unpack(">I", client_socket.recv(4))
-                    recorder.copy_to_clipboard = False
-                else:
-                    recorder.copy_to_clipboard = True
-                transcription = recorder.stop_recording()
-                response = transcription.encode("utf-8")
-                client_socket.sendall(struct.pack(">I", len(response)) + response)
-                break
+    def start_recording(self, duration=None):
+        with self.recording_lock:
+            if self.is_recording:
+                return "Error: Already recording"
+            self.is_recording = True
+            if duration:
+                self.recorder.duration = duration
+            else:
+                self.recorder.duration = DEFAULT_DURATION
+            self.recorder.start_recording()
+            return "Recording started"
+
+    def stop_recording_and_transcribe(self, copy_to_clipboard=True):
+        with self.recording_lock:
+            if not self.is_recording:
+                return "Error: Not currently recording"
+            self.is_recording = False
+
+        with self.transcribing_lock:
+            self.recorder.copy_to_clipboard = copy_to_clipboard
+            transcription = self.recorder.stop_recording()
+        return transcription
+
+def handle_client_connection(client_socket, server):
+    try:
+        command = struct.unpack(">I", client_socket.recv(4))[0]
+        if command == 1:  # Start recording
+            ready_to_read, _, _ = select.select([client_socket], [], [], 0)
+            duration = None
+            if ready_to_read:
+                duration = struct.unpack(">I", client_socket.recv(4))[0]
+            response = server.start_recording(duration)
+            client_socket.sendall(struct.pack(">I", len(response)) + response.encode("utf-8"))
+        elif command == 2:  # Stop recording and transcribe
+            ready_to_read, _, _ = select.select([client_socket], [], [], 0)
+            copy_to_clipboard = True
+            if ready_to_read:
+                struct.unpack(">I", client_socket.recv(4))
+                copy_to_clipboard = False
+            transcription = server.stop_recording_and_transcribe(copy_to_clipboard)
+            response = transcription.encode("utf-8")
+            client_socket.sendall(struct.pack(">I", len(response)) + response)
     finally:
         client_socket.close()
 
-
 def main():
-    recorder = Recorder()
+    server = TranscriptionServer()
 
-    # Change the server_address to a file path for Unix socket
     server_address = "/tmp/1099430_whisper_server_socket"
 
-    # Create a Unix socket
     server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
-    # Ensure the socket file does not already exist
     try:
         os.unlink(server_address)
     except OSError:
@@ -207,13 +226,12 @@ def main():
             client_socket, _ = server_socket.accept()
             client_handler = threading.Thread(
                 target=handle_client_connection,
-                args=(client_socket, recorder),
+                args=(client_socket, server),
             )
             client_handler.start()
     except KeyboardInterrupt:
         server_socket.close()
         print("\nServer shut down.")
-
 
 if __name__ == "__main__":
     main()
