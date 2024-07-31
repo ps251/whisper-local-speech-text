@@ -31,11 +31,18 @@ def send_command(command, server_address, duration=None, copy_to_clipboard=True)
         client_socket.close()
 
 
-
 def send_notification(message, is_error=False):
     try:
         if is_error:
-            subprocess.run(["notify-send", "-u", "critical", "Whisper Transcription Error", message])
+            subprocess.run(
+                [
+                    "notify-send",
+                    "-u",
+                    "critical",
+                    "Whisper Transcription Error",
+                    message,
+                ]
+            )
         else:
             subprocess.run(["notify-send", "Whisper Transcription", message])
     except FileNotFoundError:
@@ -87,7 +94,8 @@ def main():
         else:
             print(transcription)
             if args.notify:
-                send_notification("Transcription completed")
+                send_notification("Transcription completed" "\n" + transcription)
+
 
 if __name__ == "__main__":
     main()
