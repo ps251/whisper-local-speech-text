@@ -53,7 +53,7 @@ python client.py stop
 | **Option**             | **Description**                                    | **Default** |
 |------------------------|----------------------------------------------------|-------------|
 | `command`              | The command to send to the server. Must be either `start` or `stop`. | N/A         |
-| `--duration`           | Specifies the maximum duration of the recording in seconds. | N/A         |
+| `--duration`           | Specifies the maximum duration of the recording in seconds. | 120         |
 | `--no-clipboard`       | Do not copy the transcription to the clipboard. This option negates the default behavior of copying the transcription. | `True`      |
 | `--notify`             | Send desktop notifications when the transcription is complete. Must have notify-send command in path | `False`     |
 
